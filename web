@@ -1,21 +1,60 @@
--- script.lua (на GitHub)
-local function sendToWebhook(webhookUrl, playerData)
-    local message = {
-        ["embeds"] = {
-            {
-                ["title"] = "🚨 Новый инжект!",
-                ["description"] = string.format(
-                    "**Игрок:** %s\n**UserId:** %d\n**Игра:** %s",
-                    playerData.Name, playerData.UserId, game.PlaceId
-                ),
-                ["color"] = 16711680
-            }
-        }
-    }
+-- ==============================================
+-- ФАЙЛ: webhook_notifier.lua (для GitHub)
+-- УНИВЕРСАЛЬНЫЙ ШАБЛОН БЕЗ ПРИВЯЗКИ К ВЕБХУКУ
+-- ==============================================
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 
-    pcall(function()
-        game:HttpPost(webhookUrl, game:GetService("HttpService"):JSONEncode(message))
-    end)
+-- ПРОВЕРКА: Указал ли пользователь свой вебхук?
+if webhookUrl == nil or webhookUrl == "" then
+    error('❌ Ошибка: Не задан вебхук. Создайте переменную: local webhookUrl = "ВАШ_ВЕБХУК"')
 end
 
-return sendToWebhook
+local player = Players.LocalPlayer
+
+-- Формируем данные для отправки
+local embedData = {
+    ["content"] = "🔔 Новый запуск скрипта!",
+    ["embeds"] = {{
+        ["title"] = "Информация о сессии",
+        ["color"] = 5814783, -- Фиолетовый цвет
+        ["fields"] = {
+            {
+                ["name"] = "👤 Игрок",
+                ["value"] = "`" .. player.Name .. "`\n(" .. player.DisplayName .. ")",
+                ["inline"] = true
+            },
+            {
+                ["name"] = "🆔 User ID",
+                ["value"] = "`" .. tostring(player.UserId) .. "`",
+                ["inline"] = true
+            },
+            {
+                ["name"] = "🎮 Место (Game ID)",
+                ["value"] = "[`" .. tostring(game.PlaceId) .. "`](https://www.roblox.com/games/" .. tostring(game.PlaceId) .. ")",
+                ["inline"] = false
+            },
+            {
+                ["name"] = "⏰ Время",
+                ["value"] = os.date("!%Y-%m-%d %H:%M:%S") .. " (UTC)",
+                ["inline"] = true
+            }
+        },
+        ["footer"] = {
+            ["text"] = "Система уведомлений"
+        }
+    }}
+}
+
+-- Отправляем запрос через HttpService
+local jsonPayload = HttpService:JSONEncode(embedData)
+local success, response = pcall(function()
+    return HttpService:PostAsync(webhookUrl, jsonPayload, Enum.HttpContentType.ApplicationJson)
+end)
+
+-- Выводим результат в консоль исполнителя
+if success then
+    print("✅ Уведомление успешно отправлено в Discord!")
+else
+    print("❌ Ошибка при отправке: " .. tostring(response))
+end
