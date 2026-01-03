@@ -1,60 +1,51 @@
--- ==============================================
--- ФАЙЛ: webhook_notifier.lua (для GitHub)
--- УНИВЕРСАЛЬНЫЙ ШАБЛОН БЕЗ ПРИВЯЗКИ К ВЕБХУКУ
--- ==============================================
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
+-- Файл на GitHub (web) - ИСПРАВЛЕННАЯ ВЕРСИЯ
+-- Этот скрипт ожидает, что вебхук будет в _G.webhookUrl
 
--- ПРОВЕРКА: Указал ли пользователь свой вебхук?
-if webhookUrl == nil or webhookUrl == "" then
-    error('❌ Ошибка: Не задан вебхук. Создайте переменную: local webhookUrl = "ВАШ_ВЕБХУК"')
-end
-
-local player = Players.LocalPlayer
-
--- Формируем данные для отправки
-local embedData = {
-    ["content"] = "🔔 Новый запуск скрипта!",
-    ["embeds"] = {{
-        ["title"] = "Информация о сессии",
-        ["color"] = 5814783, -- Фиолетовый цвет
-        ["fields"] = {
-            {
-                ["name"] = "👤 Игрок",
-                ["value"] = "`" .. player.Name .. "`\n(" .. player.DisplayName .. ")",
-                ["inline"] = true
-            },
-            {
-                ["name"] = "🆔 User ID",
-                ["value"] = "`" .. tostring(player.UserId) .. "`",
-                ["inline"] = true
-            },
-            {
-                ["name"] = "🎮 Место (Game ID)",
-                ["value"] = "[`" .. tostring(game.PlaceId) .. "`](https://www.roblox.com/games/" .. tostring(game.PlaceId) .. ")",
-                ["inline"] = false
-            },
-            {
-                ["name"] = "⏰ Время",
-                ["value"] = os.date("!%Y-%m-%d %H:%M:%S") .. " (UTC)",
-                ["inline"] = true
+return function()
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
+    
+    -- Берем вебхук из глобальной переменной
+    local webhookUrl = _G.webhookUrl
+    
+    -- ПРОВЕРКА
+    if webhookUrl == nil or webhookUrl == "" then
+        error('❌ Ошибка: Вебхук не найден. Убедитесь, что задали _G.webhookUrl перед запуском этой функции.')
+    end
+    
+    local player = Players.LocalPlayer
+    
+    -- Формируем данные для отправки
+    local embedData = {
+        ["content"] = "✅ Тест вебхука прошел успешно!",
+        ["embeds"] = {{
+            ["title"] = "Информация о сессии",
+            ["color"] = 65280, -- Зеленый
+            ["fields"] = {
+                {
+                    ["name"] = "👤 Игрок",
+                    ["value"] = player.Name,
+                    ["inline"] = true
+                },
+                {
+                    ["name"] = "🆔 User ID",
+                    ["value"] = tostring(player.UserId),
+                    ["inline"] = true
+                }
             }
-        },
-        ["footer"] = {
-            ["text"] = "Система уведомлений"
-        }
-    }}
-}
-
--- Отправляем запрос через HttpService
-local jsonPayload = HttpService:JSONEncode(embedData)
-local success, response = pcall(function()
-    return HttpService:PostAsync(webhookUrl, jsonPayload, Enum.HttpContentType.ApplicationJson)
-end)
-
--- Выводим результат в консоль исполнителя
-if success then
-    print("✅ Уведомление успешно отправлено в Discord!")
-else
-    print("❌ Ошибка при отправке: " .. tostring(response))
+        }}
+    }
+    
+    -- Отправляем запрос
+    local success, response = pcall(function()
+        local jsonPayload = HttpService:JSONEncode(embedData)
+        return HttpService:PostAsync(webhookUrl, jsonPayload, Enum.HttpContentType.ApplicationJson)
+    end)
+    
+    -- Результат
+    if success then
+        print("✅ Уведомление отправлено в Discord!")
+    else
+        print("❌ Ошибка: " .. tostring(response))
+    end
 end
