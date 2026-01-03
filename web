@@ -1,51 +1,50 @@
--- Файл на GitHub (web) - ИСПРАВЛЕННАЯ ВЕРСИЯ
--- Этот скрипт ожидает, что вебхук будет в _G.webhookUrl
+-- Это ШАБЛОН. Пользователь должен заменить {WEBHOOK_URL} на свой вебхук.
+-- Полная команда для запуска будет в README.
 
-return function()
+local function sendWebhook(webhookUrl)
     local HttpService = game:GetService("HttpService")
     local Players = game:GetService("Players")
-    
-    -- Берем вебхук из глобальной переменной
-    local webhookUrl = _G.webhookUrl
-    
-    -- ПРОВЕРКА
-    if webhookUrl == nil or webhookUrl == "" then
-        error('❌ Ошибка: Вебхук не найден. Убедитесь, что задали _G.webhookUrl перед запуском этой функции.')
-    end
-    
     local player = Players.LocalPlayer
-    
-    -- Формируем данные для отправки
-    local embedData = {
-        ["content"] = "✅ Тест вебхука прошел успешно!",
+
+    -- Формируем простое сообщение для теста
+    local messageData = {
+        ["content"] = "🟢 Тестовое сообщение от " .. player.Name,
         ["embeds"] = {{
-            ["title"] = "Информация о сессии",
-            ["color"] = 65280, -- Зеленый
+            ["title"] = "Скрипт работает!",
+            ["description"] = "Пользователь успешно запустил шаблон.",
+            ["color"] = 65280, -- Зелёный цвет
             ["fields"] = {
                 {
-                    ["name"] = "👤 Игрок",
+                    ["name"] = "Игрок",
                     ["value"] = player.Name,
                     ["inline"] = true
                 },
                 {
-                    ["name"] = "🆔 User ID",
+                    ["name"] = "User ID",
                     ["value"] = tostring(player.UserId),
                     ["inline"] = true
                 }
+            },
+            ["footer"] = {
+                ["text"] = "Время: " .. os.date("%H:%M:%S")
             }
         }}
     }
-    
-    -- Отправляем запрос
-    local success, response = pcall(function()
-        local jsonPayload = HttpService:JSONEncode(embedData)
-        return HttpService:PostAsync(webhookUrl, jsonPayload, Enum.HttpContentType.ApplicationJson)
+
+    -- Пытаемся отправить
+    local success, result = pcall(function()
+        local jsonData = HttpService:JSONEncode(messageData)
+        return HttpService:PostAsync(webhookUrl, jsonData, Enum.HttpContentType.ApplicationJson)
     end)
-    
-    -- Результат
+
+    -- Сообщаем результат
     if success then
-        print("✅ Уведомление отправлено в Discord!")
+        print("✅ Вебхук отправлен! Проверьте Discord.")
     else
-        print("❌ Ошибка: " .. tostring(response))
+        print("❌ Ошибка: " .. tostring(result))
+        print("   Возможно, Discord блокирует запрос. Попробуйте использовать прокси.")
     end
 end
+
+-- Точка входа: вызываем функцию с URL, который был передан при вызове скрипта
+sendWebhook("{WEBHOOK_URL}")
