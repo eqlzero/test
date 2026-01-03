@@ -1,0 +1,63 @@
+-- ============================================
+-- ОСНОВНОЙ КОД ДЛЯ GITHUB (webhook_notifier.lua)
+-- ПРЕДПОЛАГАЕТ, ЧТО ПЕРЕМЕННАЯ webhookUrl УЖЕ ОПРЕДЕЛЕНА
+-- ============================================
+
+-- Проверяем, вставил ли пользователь свой вебхук
+if webhookUrl == nil or webhookUrl == "" then
+    print("❌ ОШИБКА: Не найден вебхук.")
+    print("Вставьте свой вебхук в первую строку перед loadstring:")
+    print('local webhookUrl = "ВАШ_DISCORD_ВЕБХУК"')
+    return -- Останавливаем скрипт
+end
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- Собираем информацию
+local playerData = {
+    ["content"] = "🔔 Новый запуск скрипта!",
+    ["embeds"] = {{
+        ["title"] = "Информация о сессии",
+        ["color"] = tonumber(0x3498db),
+        ["fields"] = {
+            {
+                ["name"] = "👤 Пользователь",
+                ["value"] = "[" .. player.DisplayName .. "](https://www.roblox.com/users/" .. player.UserId .. "/profile)",
+                ["inline"] = true
+            },
+            {
+                ["name"] = "🆔 UserId",
+                ["value"] = "```" .. tostring(player.UserId) .. "```",
+                ["inline"] = true
+            },
+            {
+                ["name"] = "🎮 Игра",
+                ["value"] = "[Перейти к игре](https://www.roblox.com/games/" .. game.PlaceId .. ")",
+                ["inline"] = false
+            },
+            {
+                ["name"] = "🕐 Время UTC",
+                ["value"] = os.date("!%Y-%m-%d %H:%M:%S"),
+                ["inline"] = true
+            }
+        },
+        ["footer"] = {
+            ["text"] = "Система уведомлений"
+        }
+    }}
+}
+
+-- Отправляем запрос
+local success, response = pcall(function()
+    local jsonData = HttpService:JSONEncode(playerData)
+    return HttpService:PostAsync(webhookUrl, jsonData, Enum.HttpContentType.ApplicationJson)
+end)
+
+-- Уведомление в консоли
+if success then
+    print("✅ Уведомление отправлено в Discord!")
+else
+    print("❌ Ошибка: Не удалось отправить. Проверьте вебхук.")
+end
