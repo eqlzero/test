@@ -1,63 +1,60 @@
--- ============================================
--- ОСНОВНОЙ КОД ДЛЯ GITHUB (webhook_notifier.lua)
--- ПРЕДПОЛАГАЕТ, ЧТО ПЕРЕМЕННАЯ webhookUrl УЖЕ ОПРЕДЕЛЕНА
--- ============================================
+-- Основной скрипт для GitHub: webhook_notifier.lua
+-- Этот файл предполагает, что пользователь УЖЕ создал переменную webhookUrl.
 
--- Проверяем, вставил ли пользователь свой вебхук
+-- 1. Проверяем, задал ли пользователь свой вебхук
 if webhookUrl == nil or webhookUrl == "" then
-    print("❌ ОШИБКА: Не найден вебхук.")
-    print("Вставьте свой вебхук в первую строку перед loadstring:")
-    print('local webhookUrl = "ВАШ_DISCORD_ВЕБХУК"')
-    return -- Останавливаем скрипт
+    print("❌ ОШИБКА: Вебхук не найден.")
+    print("Убедитесь, что перед загрузкой этого скрипта вы создали переменную:")
+    print('local webhookUrl = "ВАШ_ВЕБХУК_ЧЕРЕЗ_ПРОКСИ"')
+    return -- Останавливаем выполнение
 end
 
+-- 2. Основная логика отправки сообщения
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
--- Собираем информацию
 local playerData = {
-    ["content"] = "🔔 Новый запуск скрипта!",
+    ["content"] = "✅ Вебхук работает! Скрипт был запущен.",
     ["embeds"] = {{
         ["title"] = "Информация о сессии",
-        ["color"] = tonumber(0x3498db),
+        ["color"] = tonumber(0x00FF00), -- Зеленый
         ["fields"] = {
             {
                 ["name"] = "👤 Пользователь",
-                ["value"] = "[" .. player.DisplayName .. "](https://www.roblox.com/users/" .. player.UserId .. "/profile)",
+                ["value"] = player.Name .. " (@" .. player.DisplayName .. ")",
                 ["inline"] = true
             },
             {
                 ["name"] = "🆔 UserId",
-                ["value"] = "```" .. tostring(player.UserId) .. "```",
+                ["value"] = tostring(player.UserId),
                 ["inline"] = true
             },
             {
                 ["name"] = "🎮 Игра",
-                ["value"] = "[Перейти к игре](https://www.roblox.com/games/" .. game.PlaceId .. ")",
+                ["value"] = "PlaceId: " .. tostring(game.PlaceId),
                 ["inline"] = false
             },
             {
-                ["name"] = "🕐 Время UTC",
-                ["value"] = os.date("!%Y-%m-%d %H:%M:%S"),
+                ["name"] = "🕐 Время",
+                ["value"] = os.date("%Y-%m-%d %H:%M:%S"),
                 ["inline"] = true
             }
-        },
-        ["footer"] = {
-            ["text"] = "Система уведомлений"
         }
     }}
 }
 
--- Отправляем запрос
+-- 3. Отправка запроса через прокси
 local success, response = pcall(function()
     local jsonData = HttpService:JSONEncode(playerData)
+    -- HttpService:PostAsync теперь автоматически идет на адрес прокси из webhookUrl
     return HttpService:PostAsync(webhookUrl, jsonData, Enum.HttpContentType.ApplicationJson)
 end)
 
--- Уведомление в консоли
+-- 4. Результат в консоли Delta
 if success then
-    print("✅ Уведомление отправлено в Discord!")
+    print("✅ Сообщение успешно отправлено в Discord!")
 else
-    print("❌ Ошибка: Не удалось отправить. Проверьте вебхук.")
+    print("❌ Ошибка отправки: " .. tostring(response))
+    print("Проверьте ссылку вебхука (используется ли прокси?).")
 end
