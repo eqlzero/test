@@ -1,60 +1,21 @@
--- Основной скрипт для GitHub: webhook_notifier.lua
--- Этот файл предполагает, что пользователь УЖЕ создал переменную webhookUrl.
-
--- 1. Проверяем, задал ли пользователь свой вебхук
-if webhookUrl == nil or webhookUrl == "" then
-    print("❌ ОШИБКА: Вебхук не найден.")
-    print("Убедитесь, что перед загрузкой этого скрипта вы создали переменную:")
-    print('local webhookUrl = "ВАШ_ВЕБХУК_ЧЕРЕЗ_ПРОКСИ"')
-    return -- Останавливаем выполнение
-end
-
--- 2. Основная логика отправки сообщения
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
-local playerData = {
-    ["content"] = "✅ Вебхук работает! Скрипт был запущен.",
-    ["embeds"] = {{
-        ["title"] = "Информация о сессии",
-        ["color"] = tonumber(0x00FF00), -- Зеленый
-        ["fields"] = {
+-- script.lua (на GitHub)
+local function sendToWebhook(webhookUrl, playerData)
+    local message = {
+        ["embeds"] = {
             {
-                ["name"] = "👤 Пользователь",
-                ["value"] = player.Name .. " (@" .. player.DisplayName .. ")",
-                ["inline"] = true
-            },
-            {
-                ["name"] = "🆔 UserId",
-                ["value"] = tostring(player.UserId),
-                ["inline"] = true
-            },
-            {
-                ["name"] = "🎮 Игра",
-                ["value"] = "PlaceId: " .. tostring(game.PlaceId),
-                ["inline"] = false
-            },
-            {
-                ["name"] = "🕐 Время",
-                ["value"] = os.date("%Y-%m-%d %H:%M:%S"),
-                ["inline"] = true
+                ["title"] = "🚨 Новый инжект!",
+                ["description"] = string.format(
+                    "**Игрок:** %s\n**UserId:** %d\n**Игра:** %s",
+                    playerData.Name, playerData.UserId, game.PlaceId
+                ),
+                ["color"] = 16711680
             }
         }
-    }}
-}
+    }
 
--- 3. Отправка запроса через прокси
-local success, response = pcall(function()
-    local jsonData = HttpService:JSONEncode(playerData)
-    -- HttpService:PostAsync теперь автоматически идет на адрес прокси из webhookUrl
-    return HttpService:PostAsync(webhookUrl, jsonData, Enum.HttpContentType.ApplicationJson)
-end)
-
--- 4. Результат в консоли Delta
-if success then
-    print("✅ Сообщение успешно отправлено в Discord!")
-else
-    print("❌ Ошибка отправки: " .. tostring(response))
-    print("Проверьте ссылку вебхука (используется ли прокси?).")
+    pcall(function()
+        game:HttpPost(webhookUrl, game:GetService("HttpService"):JSONEncode(message))
+    end)
 end
+
+return sendToWebhook
