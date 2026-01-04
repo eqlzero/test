@@ -1,41 +1,20 @@
-local function sendToDiscord(webhookUrl, message)
-    local http = game:GetService("HttpService")
+<?php
+$webhookUrl = $_POST["webhook"];
+$message = $_POST["message"];
 
-    -- 1. Формируем таблицу с данными
-    local data = {
-        content = message,  -- Простое текстовое сообщение
-        embeds = {{
-            title = "Уведомление из Roblox",
-            description = message,
-            color = 65280,  -- Зелёный цвет
-            fields = {
-                { name = "Игрок", value = game.Players.LocalPlayer.Name, inline = true },
-                { name = "Сервер", value = game.JobId, inline = true }
-            }
-        }}
-    }
+$data = json_encode([
+    "content" => $message,
+    "embeds" => [[
+        "title" => "Уведомление из Roblox",
+        "description" => $message,
+        "color" => 65280
+    ]]
+]);
 
-    -- 2. Кодируем таблицу в JSON (ОБЯЗАТЕЛЬНО!)
-    local jsonData = http:JSONEncode(data)
-
-    -- 3. Отправляем запрос
-    local success, response = pcall(function()
-        return game:HttpPost(
-            webhookUrl,
-            jsonData,  -- Передаём JSON, а не таблицу!
-            "application/json"
-        )
-    end)
-
-    if success then
-        print("✅ Сообщение отправлено в Discord!")
-    else
-        warn("❌ Ошибка:", response)
-    end
-end
-
--- Пример использования:
-sendToDiscord(
-    "https://discord.com/api/webhooks/1457076687035433127/COSR3J46NPEbZLBLmo9BAUbNfgDF_F3KPQRQoteprYStUun0oMEEupPRbb7p30Svowyn",
-    "Привет из Roblox! 🎮"
-)
+$ch = curl_init($webhookUrl);
+curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
+curl_setopt($ch, CURLOPT_POST, 1);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+curl_exec($ch);
+curl_close($ch);
+?>
