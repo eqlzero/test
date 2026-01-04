@@ -1,50 +1,41 @@
--- Это ШАБЛОН. Пользователь должен заменить {WEBHOOK_URL} на свой вебхук.
--- Полная команда для запуска будет в README.
+local function sendToDiscord(webhookUrl, message)
+    local http = game:GetService("HttpService")
 
-local function sendWebhook(webhookUrl)
-    local HttpService = game:GetService("HttpService")
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
-
-    -- Формируем простое сообщение для теста
-    local messageData = {
-        ["content"] = "🟢 Тестовое сообщение от " .. player.Name,
-        ["embeds"] = {{
-            ["title"] = "Скрипт работает!",
-            ["description"] = "Пользователь успешно запустил шаблон.",
-            ["color"] = 65280, -- Зелёный цвет
-            ["fields"] = {
-                {
-                    ["name"] = "Игрок",
-                    ["value"] = player.Name,
-                    ["inline"] = true
-                },
-                {
-                    ["name"] = "User ID",
-                    ["value"] = tostring(player.UserId),
-                    ["inline"] = true
-                }
-            },
-            ["footer"] = {
-                ["text"] = "Время: " .. os.date("%H:%M:%S")
+    -- 1. Формируем таблицу с данными
+    local data = {
+        content = message,  -- Простое текстовое сообщение
+        embeds = {{
+            title = "Уведомление из Roblox",
+            description = message,
+            color = 65280,  -- Зелёный цвет
+            fields = {
+                { name = "Игрок", value = game.Players.LocalPlayer.Name, inline = true },
+                { name = "Сервер", value = game.JobId, inline = true }
             }
         }}
     }
 
-    -- Пытаемся отправить
-    local success, result = pcall(function()
-        local jsonData = HttpService:JSONEncode(messageData)
-        return HttpService:PostAsync(webhookUrl, jsonData, Enum.HttpContentType.ApplicationJson)
+    -- 2. Кодируем таблицу в JSON (ОБЯЗАТЕЛЬНО!)
+    local jsonData = http:JSONEncode(data)
+
+    -- 3. Отправляем запрос
+    local success, response = pcall(function()
+        return game:HttpPost(
+            webhookUrl,
+            jsonData,  -- Передаём JSON, а не таблицу!
+            "application/json"
+        )
     end)
 
-    -- Сообщаем результат
     if success then
-        print("✅ Вебхук отправлен! Проверьте Discord.")
+        print("✅ Сообщение отправлено в Discord!")
     else
-        print("❌ Ошибка: " .. tostring(result))
-        print("   Возможно, Discord блокирует запрос. Попробуйте использовать прокси.")
+        warn("❌ Ошибка:", response)
     end
 end
 
--- Точка входа: вызываем функцию с URL, который был передан при вызове скрипта
-sendWebhook("{WEBHOOK_URL}")
+-- Пример использования:
+sendToDiscord(
+    "https://discord.com/api/webhooks/1457076687035433127/COSR3J46NPEbZLBLmo9BAUbNfgDF_F3KPQRQoteprYStUun0oMEEupPRbb7p30Svowyn",
+    "Привет из Roblox! 🎮"
+)
