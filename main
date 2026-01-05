@@ -42,40 +42,37 @@ local MONSTERS = {
     { name = "VeeMonster",     color = Color3.fromRGB( 80, 255, 120) },
 }
 
--- Создаем элементы интерфейса
+-- Интерфейс и данные
 local uiElements = {}
 local currentReplica = nil
 local autoUpdateEnabled = true
 local updateInterval = 5
 
--- Создаем вкладку Rayfield
-local MainTab = Window:CreateTab("Основная статистика", 4483362458)
+-- Вкладка "Статистика"
+local MainTab = Window:CreateTab("Статистика", 4483362458)
+MainTab:CreateSection("Информация о пользователе")
 
--- Секция информации о пользователе
-local SectionUser = MainTab:CreateSection("Информация о пользователе")
-
--- Пользовательская информация
+-- Имя пользователя
 uiElements.username = MainTab:CreateParagraph({
     Title = "Имя пользователя",
     Content = LocalPlayer.Name
 })
 
--- Ichor
+-- ИХОР
 uiElements.ichor = MainTab:CreateParagraph({
     Title = "Ихор (Ichor)",
     Content = "0"
 })
 
--- Ornaments
+-- Украшения
 uiElements.ornaments = MainTab:CreateParagraph({
     Title = "Украшения (Ornaments)",
     Content = "0"
 })
 
--- Разделитель
+-- Исследования монстров
 MainTab:CreateSection("Прогресс исследований")
 
--- Монстры
 for _, info in ipairs(MONSTERS) do
     uiElements[info.name] = MainTab:CreateParagraph({
         Title = info.name,
@@ -83,10 +80,10 @@ for _, info in ipairs(MONSTERS) do
     })
 end
 
--- Секция управления
+-- Управление
 MainTab:CreateSection("Управление")
 
--- Кнопка для ручного обновления
+-- Обновить вручную
 MainTab:CreateButton({
    Name = "🔄 Обновить сейчас",
    Callback = function()
@@ -102,8 +99,8 @@ MainTab:CreateButton({
    end,
 })
 
--- Тоггл для автообновления
-local autoUpdateToggle = MainTab:CreateToggle({
+-- Тоггл автообновления
+MainTab:CreateToggle({
    Name = "Автообновление (каждые 5с)",
    CurrentValue = true,
    Flag = "AutoUpdate",
@@ -112,20 +109,25 @@ local autoUpdateToggle = MainTab:CreateToggle({
    end,
 })
 
--- ===== Webhook Секция =====
+-- Новая вкладка: Webhook
+local WebhookTab = Window:CreateTab("Webhook", 4483362458)
+WebhookTab:CreateSection("Отправка статистики в Discord")
+
+-- Ввод URL
 local webhookUrl = nil
 
-MainTab:CreateInput({
+WebhookTab:CreateInput({
     Name = "Webhook URL",
-    PlaceholderText = "Введите ссылку на Webhook",
+    PlaceholderText = "Введите ссылку на Discord Webhook",
     RemoveTextAfterFocusLost = false,
     Callback = function(text)
         webhookUrl = text
     end,
 })
 
-MainTab:CreateButton({
-   Name = "📤 Отправить статистику на Webhook",
+-- Кнопка отправки embed
+WebhookTab:CreateButton({
+   Name = "📤 Отправить embed со статистикой",
    Callback = function()
         if not webhookUrl or webhookUrl == "" then
             Rayfield:Notify({
@@ -145,18 +147,42 @@ MainTab:CreateButton({
             return
         end
 
-        local dataToSend = {
-            username = LocalPlayer.Name,
-            coin = currentReplica.Data and currentReplica.Data.Coin or 0,
-            ornaments = getOrnaments(currentReplica),
-            research = {}
+        local ornaments = getOrnaments(currentReplica)
+        local coin = currentReplica.Data and currentReplica.Data.Coin or 0
+
+        local embedFields = {
+            {
+                name = "🪙 Ихор",
+                value = tostring(coin),
+                inline = true
+            },
+            {
+                name = "🎄 Украшения",
+                value = tostring(ornaments),
+                inline = true
+            }
         }
 
         for _, info in ipairs(MONSTERS) do
-            dataToSend.research[info.name] = getResearchPercent(currentReplica, info.name)
+            local percent = getResearchPercent(currentReplica, info.name)
+            table.insert(embedFields, {
+                name = info.name,
+                value = tostring(percent) .. "%",
+                inline = true
+            })
         end
 
-        local jsonData = HttpService:JSONEncode({ content = HttpService:JSONEncode(dataToSend) })
+        local payload = {
+            embeds = {{
+                title = "📊 Статистика игрока: " .. LocalPlayer.Name,
+                color = 0x00ffcc,
+                fields = embedFields,
+                footer = { text = "Overlay Stats by ЖЫРНИИ" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+
+        local jsonData = HttpService:JSONEncode(payload)
 
         local success, err = pcall(function()
             request({
@@ -171,13 +197,13 @@ MainTab:CreateButton({
 
         if success then
             Rayfield:Notify({
-                Title = "Успешно",
-                Content = "Статистика отправлена",
+                Title = "✅ Успешно",
+                Content = "Статистика отправлена в Discord",
                 Duration = 2
             })
         else
             Rayfield:Notify({
-                Title = "Ошибка",
+                Title = "❌ Ошибка",
                 Content = "Не удалось отправить: " .. tostring(err),
                 Duration = 3
             })
@@ -211,22 +237,14 @@ end
 
 function refreshAll(replica)
     if not replica then return end
-    
     currentReplica = replica
-    
+
     local coin = (replica.Data and replica.Data.Coin) or 0
     local ornaments = getOrnaments(replica)
-    
-    uiElements.ichor:Set({
-        Title = "Ихор (Ichor)",
-        Content = tostring(coin)
-    })
-    
-    uiElements.ornaments:Set({
-        Title = "Украшения (Ornaments)",
-        Content = tostring(ornaments)
-    })
-    
+
+    uiElements.ichor:Set({ Title = "Ихор (Ichor)", Content = tostring(coin) })
+    uiElements.ornaments:Set({ Title = "Украшения (Ornaments)", Content = tostring(ornaments) })
+
     for _, info in ipairs(MONSTERS) do
         local pct = getResearchPercent(replica, info.name)
         if uiElements[info.name] then
@@ -241,19 +259,19 @@ end
 -- ===== HOOK REPLICA =====
 MyDataController:onReplicaReady(function(replica)
     refreshAll(replica)
-    
+
     replica:ListenToChange("Research", function()
         refreshAll(replica)
     end)
-    
+
     replica:ListenToChange("Coin", function()
         refreshAll(replica)
     end)
-    
+
     replica:ListenToChange("Seasonal", function()
         refreshAll(replica)
     end)
-    
+
     task.spawn(function()
         while true do
             task.wait(updateInterval)
