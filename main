@@ -1,146 +1,267 @@
--- Упрощенная функция для отправки данных в Discord через вебхук
-local function sendToWebhook(replica)
-    if not replica then 
-        error("Нет данных для отправки")
-        return 
+--// OverlayStatsOnly.local.lua с Rayfield
+-- Помести в StarterPlayerScripts (или в PlayerGui как LocalScript)
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+local MyDataController = require(ReplicatedStorage.Modules.MyDataController)
+local HolidayEventConfig = require(ReplicatedStorage.SharedData.HolidayEventConfig)
+
+print("[OverlayStats] Запуск Rayfield и основного скрипта...")
+
+-- Загружаем Rayfield
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Создаем окно Rayfield
+local Window = Rayfield:CreateWindow({
+   Name = "Overlay Stats",
+   LoadingTitle = "Загрузка статистики",
+   LoadingSubtitle = "by ЖЫРНИИ",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "OverlayStatsConfig",
+      FileName = "StatsConfig"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+   KeySystem = false,
+})
+
+-- какие монстры выводим + цвета
+local MONSTERS = {
+    { name = "AstroMonster",   color = Color3.fromRGB( 80, 200, 255) },
+    { name = "BobetteMonster", color = Color3.fromRGB(255, 165,  60) },
+    { name = "PebbleMonster",  color = Color3.fromRGB( 80, 140, 255) },
+    { name = "ShellyMonster",  color = Color3.fromRGB(180,  90, 255) },
+    { name = "SproutMonster",  color = Color3.fromRGB(255,  60,  60) },
+    { name = "VeeMonster",     color = Color3.fromRGB( 80, 255, 120) },
+}
+
+-- Создаем элементы интерфейса
+local uiElements = {}
+local currentReplica = nil
+local autoUpdateEnabled = true
+local updateInterval = 5
+
+-- Создаем вкладку Rayfield
+local MainTab = Window:CreateTab("Основная статистика", 4483362458)
+
+-- Секция информации о пользователе
+local SectionUser = MainTab:CreateSection("Информация о пользователе")
+
+-- Пользовательская информация
+uiElements.username = MainTab:CreateParagraph({
+    Title = "Имя пользователя",
+    Content = LocalPlayer.Name
+})
+
+-- Ichor
+uiElements.ichor = MainTab:CreateParagraph({
+    Title = "Ихор (Ichor)",
+    Content = "0"
+})
+
+-- Ornaments
+uiElements.ornaments = MainTab:CreateParagraph({
+    Title = "Украшения (Ornaments)",
+    Content = "0"
+})
+
+-- Разделитель
+MainTab:CreateSection("Прогресс исследований")
+
+-- Монстры
+for _, info in ipairs(MONSTERS) do
+    uiElements[info.name] = MainTab:CreateParagraph({
+        Title = info.name,
+        Content = "0%"
+    })
+end
+
+-- Секция управления
+MainTab:CreateSection("Управление")
+
+-- Кнопка для ручного обновления
+MainTab:CreateButton({
+   Name = "🔄 Обновить сейчас",
+   Callback = function()
+        if currentReplica then
+            refreshAll(currentReplica)
+            Rayfield:Notify({
+               Title = "Статистика обновлена",
+               Content = "Данные успешно обновлены",
+               Duration = 2,
+               Image = 4483362458,
+            })
+        end
+   end,
+})
+
+-- Тоггл для автообновления
+local autoUpdateToggle = MainTab:CreateToggle({
+   Name = "Автообновление (каждые 5с)",
+   CurrentValue = true,
+   Flag = "AutoUpdate",
+   Callback = function(Value)
+        autoUpdateEnabled = Value
+   end,
+})
+
+-- ===== Webhook Секция =====
+local webhookUrl = nil
+
+MainTab:CreateInput({
+    Name = "Webhook URL",
+    PlaceholderText = "Введите ссылку на Webhook",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(text)
+        webhookUrl = text
+    end,
+})
+
+MainTab:CreateButton({
+   Name = "📤 Отправить статистику на Webhook",
+   Callback = function()
+        if not webhookUrl or webhookUrl == "" then
+            Rayfield:Notify({
+                Title = "Ошибка",
+                Content = "Сначала введите Webhook URL",
+                Duration = 3
+            })
+            return
+        end
+
+        if not currentReplica then
+            Rayfield:Notify({
+                Title = "Ошибка",
+                Content = "Нет данных для отправки",
+                Duration = 3
+            })
+            return
+        end
+
+        local dataToSend = {
+            username = LocalPlayer.Name,
+            coin = currentReplica.Data and currentReplica.Data.Coin or 0,
+            ornaments = getOrnaments(currentReplica),
+            research = {}
+        }
+
+        for _, info in ipairs(MONSTERS) do
+            dataToSend.research[info.name] = getResearchPercent(currentReplica, info.name)
+        end
+
+        local jsonData = HttpService:JSONEncode({ content = HttpService:JSONEncode(dataToSend) })
+
+        local success, err = pcall(function()
+            request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+        end)
+
+        if success then
+            Rayfield:Notify({
+                Title = "Успешно",
+                Content = "Статистика отправлена",
+                Duration = 2
+            })
+        else
+            Rayfield:Notify({
+                Title = "Ошибка",
+                Content = "Не удалось отправить: " .. tostring(err),
+                Duration = 3
+            })
+        end
+   end,
+})
+
+-- ===== DATA HELPERS =====
+function getResearchPercent(replica, monsterName)
+    if not replica or not replica.Data or type(replica.Data.Research) ~= "table" then
+        return 0
     end
+    for _, entry in ipairs(replica.Data.Research) do
+        if type(entry) == "table" and entry[1] == monsterName then
+            return tonumber(entry[2]) or 0
+        end
+    end
+    return 0
+end
+
+function getOrnaments(replica)
+    if not replica or not replica.Data then return 0 end
+    local path = HolidayEventConfig.GetCurrencyPath()
+    local current = replica.Data
+    for seg in string.gmatch(path, "[^%.]+") do
+        if type(current) ~= "table" then return 0 end
+        current = current[seg]
+    end
+    return tonumber(current) or 0
+end
+
+function refreshAll(replica)
+    if not replica then return end
     
-    if webhookUrl == "" or webhookUrl == nil then
-        error("Нет ссылки на вебхук. Вставьте ссылку в поле Webhook URL")
-        return
-    end
+    currentReplica = replica
     
     local coin = (replica.Data and replica.Data.Coin) or 0
     local ornaments = getOrnaments(replica)
     
-    -- Собираем статистику по монстрам
-    local monsterStats = ""
+    uiElements.ichor:Set({
+        Title = "Ихор (Ichor)",
+        Content = tostring(coin)
+    })
+    
+    uiElements.ornaments:Set({
+        Title = "Украшения (Ornaments)",
+        Content = tostring(ornaments)
+    })
+    
     for _, info in ipairs(MONSTERS) do
         local pct = getResearchPercent(replica, info.name)
-        monsterStats = monsterStats .. string.format("%s: %d%%\n", info.name, pct)
-    end
-    
-    -- Создаем простое сообщение
-    local messageContent = string.format(
-        "📊 **Статистика игрока**\n\n" ..
-        "👤 **Игрок:** %s\n" ..
-        "💰 **Ихор (Ichor):** %d\n" ..
-        "🎄 **Украшения (Ornaments):** %d\n\n" ..
-        "🧬 **Прогресс исследований:**\n%s\n" ..
-        "_Overlay Stats by ЖЫРНИИ_",
-        LocalPlayer.Name,
-        coin,
-        ornaments,
-        monsterStats
-    )
-    
-    -- Создаем данные для отправки
-    local data = {
-        content = messageContent,
-        username = "Overlay Stats Bot"
-    }
-    
-    local json = HttpService:JSONEncode(data)
-    
-    -- САМЫЙ ПРОСТОЙ ВАРИАНТ - Пробуем все методы по очереди с pcall
-    local success = false
-    local errorMessage = ""
-    
-    -- Вариант 1: syn.request
-    if not success and syn and type(syn.request) == "function" then
-        local reqSuccess, reqResponse = pcall(function()
-            return syn.request({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = json
+        if uiElements[info.name] then
+            uiElements[info.name]:Set({
+                Title = info.name,
+                Content = tostring(pct) .. "%"
             })
-        end)
-        
-        if reqSuccess then
-            if type(reqResponse) == "table" and (reqResponse.Success or reqResponse.StatusCode == 200 or reqResponse.StatusCode == 204) then
-                success = true
-            else
-                errorMessage = "syn.request вернул ошибку: " .. tostring(reqResponse and reqResponse.StatusCode or "unknown")
-            end
-        else
-            errorMessage = "Ошибка syn.request: " .. tostring(reqResponse)
         end
-    end
-    
-    -- Вариант 2: http_request (для некоторых эксплойтов)
-    if not success and http_request and type(http_request) == "function" then
-        local reqSuccess, reqResponse = pcall(function()
-            return http_request({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = json
-            })
-        end)
-        
-        if reqSuccess then
-            if type(reqResponse) == "table" and (reqResponse.Success or reqResponse.StatusCode == 200 or reqResponse.StatusCode == 204) then
-                success = true
-            else
-                errorMessage = "http_request вернул ошибку: " .. tostring(reqResponse and reqResponse.StatusCode or "unknown")
-            end
-        else
-            errorMessage = "Ошибка http_request: " .. tostring(reqResponse)
-        end
-    end
-    
-    -- Вариант 3: request
-    if not success and request and type(request) == "function" then
-        local reqSuccess, reqResponse = pcall(function()
-            return request({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = json
-            })
-        end)
-        
-        if reqSuccess then
-            if type(reqResponse) == "table" and (reqResponse.Success or reqResponse.StatusCode == 200 or reqResponse.StatusCode == 204) then
-                success = true
-            else
-                errorMessage = "request вернул ошибку: " .. tostring(reqResponse and reqResponse.StatusCode or "unknown")
-            end
-        else
-            errorMessage = "Ошибка request: " .. tostring(reqResponse)
-        end
-    end
-    
-    -- Вариант 4: HttpService:PostAsync (если ничего не работает)
-    if not success then
-        local reqSuccess, reqResponse = pcall(function()
-            return game:GetService("HttpService"):PostAsync(webhookUrl, json, Enum.HttpContentType.ApplicationJson)
-        end)
-        
-        if reqSuccess then
-            success = true
-        else
-            errorMessage = "Ошибка HttpService:PostAsync: " .. tostring(reqResponse)
-        end
-    end
-    
-    -- Результат
-    if success then
-        Rayfield:Notify({
-            Title = "✅ Успешно",
-            Content = "Статистика отправлена в Discord",
-            Duration = 3,
-            Image = 4483362458,
-        })
-        print("[Webhook] Сообщение успешно отправлено")
-    else
-        error("Не удалось отправить сообщение. Последняя ошибка: " .. errorMessage)
     end
 end
+
+-- ===== HOOK REPLICA =====
+MyDataController:onReplicaReady(function(replica)
+    refreshAll(replica)
+    
+    replica:ListenToChange("Research", function()
+        refreshAll(replica)
+    end)
+    
+    replica:ListenToChange("Coin", function()
+        refreshAll(replica)
+    end)
+    
+    replica:ListenToChange("Seasonal", function()
+        refreshAll(replica)
+    end)
+    
+    task.spawn(function()
+        while true do
+            task.wait(updateInterval)
+            if autoUpdateEnabled and currentReplica then
+                refreshAll(currentReplica)
+            end
+        end
+    end)
+end)
+
+print("[OverlayStats] Rayfield GUI успешно инициализирован")
